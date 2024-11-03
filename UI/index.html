@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Upload and Preview</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <!-- PDF.js -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/5.3.0/js/bootstrap.min.js"></script>
+<!-- Bootstrap CSS -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+<!-- Bootstrap JavaScript Bundle with Popper -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-lg mb-5">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">HDTDF</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link active" aria-current="page" href="#">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">Features</a>
+                    </li>
+                  
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-5">
+        <div class="container my-5">
+            <h1 class="mb-4 text-center">Handwritten Document to Digital PDF Converter</h1>
+            <p class="lead text-center mb-4">
+              Effortlessly convert handwritten notes, forms, and documents into digital, searchable PDFs. Enhance productivity and organization with our fast, reliable, and user-friendly tool.
+            </p>
+          </div>
+          
+        <div class="row justify-content-center">
+            <div class="d-flex gap-4">
+                <div class="mb-3">
+                    <label for="pdfUpload" class="form-label">Upload PDF</label>
+                    <input class="form-control" type="file" id="pdfUpload" accept="*/*">
+                </div>
+                <button id="submitBtn" class="btn btn-outline-success btn-lg my-auto" disabled onclick="processPDF()">Submit PDF</button>
+                <button id="downloadBtn" class="btn btn-outline-primary btn-lg my-auto" disabled>Download</button>
+                <!-- <button id="deletePagesBtn" class="btn btn-outline-danger btn-lg my-auto" disabled>Delete Selected Pages</button> -->
+            </div>
+        </div>
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <h4>Uploaded PDF</h4>
+                <div id="pdfPreview" class="border rounded p-3" style="height: 500px; overflow: auto; background-color: #f8f9fa;"></div>
+                <div class="d-flex justify-content-between mt-3">
+                    <button id="prevPageBtn" class="btn btn-secondary" disabled>Previous Page</button>
+                    <span id="pageInfo"></span>
+                    <button id="nextPageBtn" class="btn btn-secondary" disabled>Next Page</button>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <h4>Generated PDF</h4>
+                <div id="pdfOutputPreview" class="border rounded p-3" style="height: 500px; overflow: auto; background-color: #f8f9fa;"></div>
+                <div class="d-flex justify-content-between mt-3">
+                    <button id="prevOutputPageBtn" class="btn btn-secondary" disabled>Previous Page</button>
+                    <span id="pageOutputInfo"></span>
+                    <button id="nextOutputPageBtn" class="btn btn-secondary" disabled>Next Page</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS and dependencies -->
+   
+    <script>
+        let uploadedFile;
+        let pdfDoc;
+        let currentPage = 1;
+        let totalPages;
+        let selectedPages = new Set();
+        let urlResult;
+        document.getElementById('pdfUpload').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file && file.type === 'application/pdf') {
+                uploadedFile = file;
+                const fileReader = new FileReader();
+                fileReader.onload = function() {
+                    const typedarray = new Uint8Array(this.result);
+
+                    pdfjsLib.getDocument(typedarray).promise.then(function(pdf) {
+                        pdfDoc = pdf;
+                        totalPages = pdf.numPages;
+                        renderPage(currentPage);
+                        document.getElementById('downloadBtn').disabled = false;
+                        // document.getElementById('deletePagesBtn').disabled = false;
+                        document.getElementById('prevPageBtn').disabled = currentPage === 1;
+                        document.getElementById('nextPageBtn').disabled = currentPage === totalPages;
+                        document.getElementById('submitBtn').disabled = false;
+                    });
+                };
+                fileReader.readAsArrayBuffer(file);
+            }
+        });
+       
+        function processPDF(){
+           
+           
+            const fileInput = document.getElementById('pdfUpload');
+            const file = fileInput.files[0];
+
+        if (file) {
+                console.log(file);
+                const formData = new FormData();
+                formData.append('file', file);
+
+fetch("http://127.0.0.1:8000/upload_pdf/", {
+  method: "POST",
+  body: formData,
+})
+  .then(response => {if (response.headers.get('content-type').includes('application/json')) {
+            return response.json();
+        } else {
+            return response.blob();
+        }
+    })
+    .then(async data => {
+        if (data instanceof Blob) {
+            const typedarray = new Uint8Array(await data.arrayBuffer());
+            pdfjsLib.getDocument(typedarray).promise.then(function(pdf) {
+                pdfDoc = pdf;
+                totalPages = pdf.numPages;
+                renderOutputPage(currentPage);
+                document.getElementById('prevOutputPageBtn').disabled = currentPage === 1;
+                document.getElementById('nextOutputPageBtn').disabled = currentPage === totalPages;
+            });
+
+            function renderOutputPage(pageNum) {
+                pdfDoc.getPage(pageNum).then(function(page) {
+                    const pdfOutputPreview = document.getElementById('pdfOutputPreview');
+                    const viewport = page.getViewport({ scale: pdfOutputPreview.clientWidth / page.getViewport({ scale: 1 }).width });
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+
+                    page.render({
+                        canvasContext: context,
+                        viewport: viewport
+                    }).promise.then(function() {
+                        pdfOutputPreview.innerHTML = '';
+                        const pageContainer = document.createElement('div');
+                        pageContainer.classList.add('page-container');
+                        pageContainer.appendChild(canvas);
+                        pdfOutputPreview.appendChild(pageContainer);
+                        document.getElementById('pageOutputInfo').textContent = `Page ${pageNum} of ${totalPages}`;
+                    });
+                });
+            }
+
+            document.getElementById('prevOutputPageBtn').addEventListener('click', function() {
+                if (currentPage > 1) {
+                    currentPage--;
+                    renderOutputPage(currentPage);
+                    document.getElementById('nextOutputPageBtn').disabled = currentPage === totalPages;
+                    document.getElementById('prevOutputPageBtn').disabled = currentPage === 1;
+                }
+            });
+
+            document.getElementById('nextOutputPageBtn').addEventListener('click', function() {
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    renderOutputPage(currentPage);
+                    document.getElementById('nextOutputPageBtn').disabled = currentPage === totalPages;
+                    document.getElementById('prevOutputPageBtn').disabled = currentPage === 1;
+                }
+            });
+            // window.URL.revokeObjectURL(url);
+        } else {
+            console.log(data);
+        }
+    })
+    .catch(error => console.error('Error:', error));
+            }
+        
+        }
+        function renderPage(pageNum) {
+            pdfDoc.getPage(pageNum).then(function(page) {
+            const pdfPreview = document.getElementById('pdfPreview');
+            const viewport = page.getViewport({ scale: pdfPreview.clientWidth / page.getViewport({ scale: 1 }).width });
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+
+            page.render({
+                canvasContext: context,
+                viewport: viewport
+            }).promise.then(function() {
+                pdfPreview.innerHTML = '';
+                const pageContainer = document.createElement('div');
+                pageContainer.classList.add('page-container');
+                pageContainer.appendChild(canvas);
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.classList.add('page-checkbox');
+                checkbox.dataset.pageNum = pageNum;
+                checkbox.addEventListener('change', function() {
+                if (this.checked) {
+                    selectedPages.add(pageNum);
+                } else {
+                    selectedPages.delete(pageNum);
+                }
+                });
+
+                pageContainer.appendChild(checkbox);
+                pdfPreview.appendChild(pageContainer);
+                document.getElementById('pageInfo').textContent = `Page ${pageNum} of ${totalPages}`;
+            });
+            });
+        }
+
+        document.getElementById('prevPageBtn').addEventListener('click', function() {
+            if (currentPage > 1) {
+                currentPage--;
+                renderPage(currentPage);
+                document.getElementById('nextPageBtn').disabled = currentPage === totalPages;
+                document.getElementById('prevPageBtn').disabled = currentPage === 1;
+            }
+        });
+
+        document.getElementById('nextPageBtn').addEventListener('click', function() {
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderPage(currentPage);
+                document.getElementById('nextPageBtn').disabled = currentPage === totalPages;
+                document.getElementById('prevPageBtn').disabled = currentPage === 1;
+            }
+        });
+
+        document.getElementById('downloadBtn').addEventListener('click', function() {
+            if (uploadedFile) {
+                
+                const a = document.createElement('a');
+                a.href = urlResult;
+                a.download = 'output.pdf';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                // URL.revokeObjectURL(url);
+            }
+        });
+
+        // document.getElementById('deletePagesBtn').addEventListener('click', function() {
+        //     if (selectedPages.size > 0) {
+        //         const newPdfDoc = new pdfjsLib.PDFDocument();
+        //         const pagesToKeep = [];
+
+        //         for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+        //             if (!selectedPages.has(pageNum)) {
+        //                 pagesToKeep.push(pageNum);
+        //             }
+        //         }
+
+        //         pdfDoc.copyPages(pdfDoc, pagesToKeep).then(function(copiedPages) {
+        //             copiedPages.forEach(function(page) {
+        //                 newPdfDoc.addPage(page);
+        //             });
+
+        //             newPdfDoc.save().then(function(newPdfBytes) {
+        //                 const newPdfBlob = new Blob([newPdfBytes], { type: 'application/pdf' });
+        //                 uploadedFile = new File([newPdfBlob], uploadedFile.name, { type: 'application/pdf' });
+        //                 selectedPages.clear();
+        //                 renderPage(currentPage);
+        //             });
+        //         });
+        //     }
+        // });
+    </script>
+</body>
+</html>
